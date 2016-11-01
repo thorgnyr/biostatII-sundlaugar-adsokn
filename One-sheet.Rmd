@@ -1,0 +1,26 @@
+---
+title: "Rannsóknaráætlun"
+author: "Þórgnýr Thoroddsen"
+date: "11/1/2016"
+output: html_document
+---
+
+###Bakgrunnur
+Þann 1. nóvember 2015 var einskiptisgjald í sundlaugar Reykjavíkur hækkað úr 650 krónum í 900 krónur.
+
+###Markmið
+Hér er lögð fram sú tilgáta að notkun afsláttarmiða og tímabilskorta hafi aukist í kjölfarið af hækkuninni, samhliða fækkun greiddra einskiptisgjalda.
+
+###Aðferðir
+
+####Efniviður
+Gögnin eru fengin frá skrifstofu Íþrótta- og tómstundasviðs Reykjavíkur, sem sinnir rekstri sundlauganna. Gagnasettið var samansett úr sundurliðaðri sölu og aðsókn í sundlaugar Reykjavíkur á árunum 2006 - 2016. Úr þeim gögnum var unnið minna gagnasett frá þremur sundlaugum, sem telur aðsókn barna og fullorðinna með tilliti til greiðsluaðferða, mánuð fyrir mánuð, frá janúar 2015 til og með ágúst 2016.
+
+####Rannsóknarsnið
+
+####Áreiti, skýribreyta, áhættuþættir
+####Útkoma, svarbreyta
+####Leiðréttingabreytur, áhrifsbreytur
+####Tölfræðiaðferð
+
+###Mikilvægi

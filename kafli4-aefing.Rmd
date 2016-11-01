@@ -1,0 +1,361 @@
+---
+title: "Kafli4"
+author: "Thor Aspelund"
+date: "25 október 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(epitools)
+library(xtable)
+library(visreg)
+```
+
+```{r}
+data(wcgs)
+wcgs$dibpat0f<-factor(wcgs$dibpat0,levels=0:1,
+                      label=c("B","A"))
+wcgs$agegroup <- cut(wcgs$age0,breaks=c(39,45,50,55,60),
+                     include.lowest = T,right = FALSE)
+wcgs$age0q5 <- cut(wcgs$age0,breaks=quantile(wcgs$age0,
+                  seq(0,1,0.2)),include.lowest=T,right=FALSE)
+wcgs$behpat0f <- factor(wcgs$behpat0,levels=1:4,
+                        label=c("A1","A2","B1","B2"))
+wcgs$smoker <- ifelse(wcgs$ncigs0>0,1,0)
+# Tvaer utgarfur af smoker factor breytu.  
+# Fyrst smoker sem vidmid og svo ekki smoker sem 
+# vidmid.  Her stendur smokerfny fyrir smoker-f-n-y eda 
+# smoker f(actor) n(o) y(es)
+wcgs$smokerf <- factor(wcgs$smoker,levels=c(1,0),
+                       labels=c("Yes","No"))
+wcgs$smokerfny <- factor(wcgs$smoker,levels=c(0,1),
+                         labels=c("No","Yes"))
+wcgs$heightcm <- wcgs$height0*2.54
+wcgs$weightkg <- wcgs$weight0*0.45359237
+wcgs$bmi <- wcgs$weightkg / (wcgs$heightcm/100)^2
+wcgs$cholmmol <- wcgs$chol0/39
+wcgs$chd69f <- factor(wcgs$chd69,levels=c(1,0),
+                      labels=c("Yes","No"))
+wcgs$chd69fny <- factor(wcgs$chd69,levels=c(0,1),
+                        labels=c("No CHD","CHD"))
+wcgs$agem <- wcgs$age0 - 46
+wcgs$bmiq5 <- cut(wcgs$bmi,breaks=quantile(wcgs$bmi,
+            seq(0,1,0.2)),include.lowest=T,right=FALSE)
+wcgs$time169y <- wcgs$time169/365.24
+```
+
+
+# Kafli 4
+
+## Lógístísk aðhvarfsgreining
+Þessi kafli fjallar um lógístíska aðhvarfsgreiningu (logistic regression) í R.   Lógístísk aðhvarfsgreining er notuð þegar útkoman er flokkabreyta (categorical).  Lang algengast er að gildi flokkabreytunnar séu tvö eða með öðrum orðum að útkoman sé tvíkosta (binary).  Þessi kafli fjallar um það tilvik. Lógístísk aðhvarfsgreining er gerð í R með *glm* (*Generalized Linear Models*) eða *gam* (*Generalized Additive Models*).
+
+## Skilgreining á líkani
+Fyrsta skrefið í að skilgreina líkan fyrir tvíkosta útkomur er að taka mið af dreifingu útkomunnar. Við táknum með $Y$ tvíkosta hendingu (útkomu). Við gerum ráð fyrir að $Y \sim Bernoulli(\pi)$. Þá er $E(Y)=\pi$ og $Var(Y)= \pi (1 - \pi)$. Athugið að $0 < \pi < 1$. Næsta skref er að skilgreina línulegt líkan fyrir væntigildið $\pi$ þannig að $g(\pi) = \beta_0 + \beta_1 x_1 + \cdots + \beta_p x_p$.  Hér er $g$ er eitthvert fall til að tengja saman línulega samantekt af skýribreytunum við væntigildið. Við köllum það tengifall.  Á ensku er fallið $g$ kallað *link function*. Skýribreyturnar eru taknaðar með $x$ og eru almennt $p$ talsins: $x_1,\ldots,x_p$. Til dæmis ef fallið er hlutlausa fallið (*identity function*) er $g(\pi)=\pi$ og líkanið verður $\pi = \beta_0 + \beta_1 x_1 + \cdots + \beta_p x_p$. Hér gætum við lent í vandræðum því auðvelt er að finna gildi á $\beta$-stuðlunum og skýribreytunum þannig að hægri hliðin verði neikvæð tala eða tala stærri en 1. Til almennra nota er vænlegra að nota annað fall.  Algengast er að nota *logit* fallið: 
+
+$$
+g\: (0,1) \to (-\infty,\infty), g(\pi)=\log \left(    \frac{\pi} {1-\pi} \right)
+$$
+
+Munið að með $\log$ er alltaf átt við náttúrlega logrann $\ln$.
+Þetta þýðir að fallið $g$ tekur við tölu á bilinu 0 til 1 og varpar henni yfir í tölu á bilinu frá mínus óendanlegt til plús óendanlegt $(-\infty,+\infty)$.  Andhverfa *logit* fallsins er kölluð *logistic*.  Það fall er 
+
+$$
+h\: (-\infty,\infty) \to (0,1), h(x)=\frac{exp(x)}{1 + exp(x)}
+$$
+
+Teiknum log-odds (g fallið) á móti $\pi$:
+
+```{r}
+prob <- seq(0.01,0.99,0.01)
+odds <- prob/(1-prob)
+qplot(prob,log(odds),geom=c("point","line"))
+```
+
+
+
+Teiknum logistic fallið (h fallið) á móti $x$:
+```{r}
+x <- seq(-5,5,0.1)
+l.x <- exp(x)/(1+exp(x))
+qplot(x,l.x,geom=c("point","line"))
+```
+
+Logit fallið heitir *qlogis* í R og logistic fallið heitir *plogis*.
+
+### Æfing
+Látum $\pi_0$ vera líkur á að fá 1 á venjulegum teningi. 
+
+* Reiknið gagnlíkindi (odds) að fá 1 á venjulegum teningi (svar: 0.2) 
+* Reiknið log-odds á að fá 1 á venjulegum teningi. (Svar: -1.609438)
+* Reiknið $g(\pi_0)$.  (Svar: -1.609438)
+* Leysið $h(x) = \pi_0$  (Svar: -1.609438)
+* Reiknið $h(-1)$, $h(0)$, $h(1)$.
+* Skoðið hjálpina fyrir *plogis* og *qlogis* föllin í R.  Sannfærið ykkur um $h$=plogis og 
+$g$=qlogis í R.
+ 
+
+## Skilgreining á lógístísku líkani
+
+Skilgreining á hefðbundnu lógístísku líkani með $p$ skýribreytum verður þá
+$$
+\begin{aligned}
+Y \sim Bernoulli(\pi) \\
+g(\pi) = \beta_0 + \beta_1 x_1 + \cdots + \beta_p x_p
+\end{aligned}
+$$
+
+þar sem tengifallið *g* er venjulega *logit* fallið.
+
+Markmiðið er að finna gildi á stikunum $\beta_0, \beta_1, \cdots, \beta_p$ þannig að línulega samantektin við skýribreyturnar $\beta_0 + \beta_1 x_1 + \cdots + \beta_p x_p$ verði sem næst log-odds af líkunum af jákvæðri útkomu.  Munið að $g(\pi)$ er log-odds af $\pi$.
+
+## Einfalt dæmi um líkan
+Notum persónuleikabreytuna *dibpat0* sem skýribreytu.  Þetta er flokkabreyta með tvö gildi.  
+
+```{r}
+table(wcgs$dibpat0)
+```
+
+
+Við höfum skilgreint *dibpat0f* sem *factor* breytu til að minna okkur á hvað gildin þýða.
+
+```{r}
+table(wcgs$dibpat0f)
+```
+
+Við höfum áður kannað sambandið milli hegðunar og hjartasjúkdóms.  Hlutfall úr hverjum flokki sem fékk hjartasjúkdóm er
+
+```{r}
+prop.table(table(wcgs$dibpat0f,wcgs$chd69),1)
+
+```
+
+og höfðum reiknað gagnlíkindi (oods ratio)
+```{r}
+oddsratio.wald(wcgs$dibpat0f,wcgs$chd69)
+```
+
+Setjum þessa greiningu fram sem líkan. Útkoman er $Y$ sem segir okkur hvort einstaklingur fékk hjartasjúkdóm $Y=1$, eða ekki $Y=0$. Þetta er tvíkosta útkoma og við látum  Látum $\pi$ vera líkurnar á að fá hjartasjúkdóm.  Við látum $x$ vera *dummy* breytu þar sem $x=1$ ef hegðunin er A og $x=0$ ef hegðunin er B.  Í raun er $x$ jafngild breytunni *dibpat0*.  
+
+Svo skilgreinum við 
+$$
+\begin{aligned}
+Y \sim Bernoulli(\pi) \\
+g(\pi) = \beta_0 + \beta_1 \, x
+\end{aligned}
+$$
+
+Hvernig finnum við svo mat á $\beta_0$ og $\beta_1$ út frá gögnunum?  Þegar $x=0$ gildir að athugaða gildið á $\pi$ er $0.05048$.  Þá ætti að gilda $g(0.05048)=\beta_0$.  Þá er eðlilegt að velja $\hat{\beta}_0 = -2.934379$.  Þegar $x=1$ gildir að athugaða gildið á $\pi$ er $0.11202$.  Þá ætti að gilda $g(0.11202)=\beta_0 + \beta_1$ eða $-2.070372 = \beta_0 + \beta_1$.  Ef við notum $\hat{\beta}_0 = -2.934379$ er eðlilegt að velja 
+$$
+\hat{\beta}_1 = g(0.11202) - \hat{\beta}_0 = -2.070372+2.934379 = 0.864007.
+$$  
+
+Í þessa einfalda dæmi höfum við sýnt hvernig gildi á $\beta_0$ og $\beta_1$ eru valin út frá gögnunum.  
+
+Hvaða þýðingu hafa svo gildin $\hat{\beta}_0 = -2.934379$ og $\hat{\beta}_1 = 0.864007$?  Það er lærdómsríkt að skoða það.  Líkanið er $g(\pi) = \beta_0 + \beta_1 \, x$. Þegar $x=0$ er hegðun af tegund B.  Líkur á hjartasjúkdómi metum við þá sem $h(\hat{\beta}_0)$.  Af hverju?  Rifjum upp að þegar $x=0$ gildir $g(\pi) = \beta_0$ eða $\pi = h(\beta_0) = {exp(\beta_0) \over 1 + exp(\beta_0)}$.  Við getum reiknað $\hat{\pi}_{x=0}$  í R með 
+
+```{r}
+plogis(-2.934379)
+```
+
+
+Þegar $x=1$ er hegðunin af tegund A.  Þá gildir $g(\pi) = \beta_0 + \beta_1$ eða $\pi=h(\beta_0 + \beta_1)$ eða 
+$\pi = {\exp(\beta_0 + \beta_1) \over 1 + \exp(\beta_0 + \beta_1)}$.  
+
+Við getum reiknað $\hat{\pi}_{x=1}$  í R með 
+
+```{r}
+plogis(-2.934379 + 0.864007)
+```
+
+Nú erum við búin að sýna að það er einfalt að reikna líkur á útkomu miðað við gefin gildi á skýribreytum.  Það þarf bara að venjast notkun á tengifallinu $g$ og andhverfu þess $h$.  Næst skulum við tengja við gagnlíkindahlutfallið (odds ratio).  
+
+Þegar $x=0$ er log-odds jafnt $\beta_0$.  Með öðrum orðum 
+$$
+\log \left( {\pi_{x=0} \over 1-\pi_{x=0}} \right) = \beta_0.
+$$
+
+Þegar $x=1$ er log-odds jafnt $\beta_0 + \beta_1$.  Með öðrum orðum 
+$$
+\log \left( {\pi_{x=1} \over 1-\pi_{x=1}} \right) = \beta_0 + \beta_1.
+$$
+
+Við skulum draga fyrri jöfnuna frá þeirri seinni.  Þá gildir
+$$
+\log \left( {\pi_{x=1} \over 1-\pi_{x=1}} \right) - \log \left( {\pi_{x=0} \over 1-\pi_{x=0}} \right)=\beta_1.
+$$
+
+Munið að $\log(a)-\log(b) = \log \left(  {a \over b}   \right)$.   Þá verður mismunur vinstri hliðanna logrinn af gagnlíkindahlutfallinu og mismunur hægri hliðanna verður $\beta_1$.  Þar með gildir:
+$$
+\log \left(  {{\pi_{x=1} \over 1-\pi_{x=1}} \over {\pi_{x=0} \over 1-\pi_{x=0}}}    \right) = \beta_1.
+$$
+
+Beitum svo andhverfunni $\exp$ báðum megin.  Þá gildir gagnlíkindahlutfallið er sama og veldisfallið af $\beta_1$ eða:
+$$
+{{\pi_{x=1} \over 1-\pi_{x=1}} \over {\pi_{x=0} \over 1-\pi_{x=0}}} = \exp(\beta_1).
+$$
+
+Við höfum í raun sýnt að $\exp(\beta_1)$ er sama og gagnlíkindahlutfallið fyrir jákvæða útkomu fyrir $x=1$ samanborið við $x=0$.  Þetta gildir fyrir allar skýribreytur af hvaða gerð sem er, svo lengi sem hækkunin er 1 eining þ.e. frá $x=0$ til $x=1$. 
+
+### Æfing
+Leiðið út fyrir einfalt líkan eins og að ofan að gagnlíkindahlutfallið fyrir $x=5$ miðað við $x=0$ er $\exp(5 \cdot \beta_1)$.  Hvað gildir fyrir $x=6$ miðað við $x=1$?
+
+## Einfalt líkan í R
+Næst skulum við leysa verkefnið að ofan í R.  Þó svo að hægt sé að reikna matið á $\beta_0$ og $\beta_1$ í svona einföldu líkani vandast málið þegar til koma fleiri breytur og þegar við notum samfelldar breytur eins og aldur.  Við notum *glm* (Generalized Linear Models) fallið í R.  Gefa þarf til kynna að útkoman sé tvíkosta og að tengifallið sé *logit* með valinu *family=binomial(link="logit")*.  Við geymum niðurstöðuna í *fit.simple* og köllum hana svo fram með *summary()*.  Hér notum factor breytuna dibpat0f sem skýribreytu.  Hér skiptir máli að við skilgreindum þá breytu með 
+
+```{r,eval=FALSE}
+wcgs$dibpat0f <- factor(wcgs$dibpat0,levels=0:1,label=c("B","A"))
+```
+
+Þarna samsvarar 0 gildinu B og 1 gildinu A.  Fallið *glm* sér um að búa til tilsvarandi *dummy* breytu fyrir okkur.
+
+Líkanið er skilgreint með
+```{r}
+fit.simple <- glm(chd69 ~ dibpat0f,family=binomial(link="logit"),data=wcgs)
+summary(fit.simple)
+```
+
+Reyndar er nóg að skrifa *family="binomial"* því *logit* er sjálfgildið.
+
+Takið eftir hvernig niðurstöðurnar eru merktar í úttakinu.  Undir *Coefficients* kemur mat á stikunum $\beta_0$ og $\beta_1$.  Fyrst kemur $\hat{\beta}_0$ merkt með *(Intercept)*.  Hér er $\hat{\beta}_0 = -2.934$.  Næst kemur svo stikinn fyrir næstu skýribreytu sem er *dibpat0f*.  Takið eftir að hann er merktur með $dibpat0fA$ til að minna okkur á að verið er að bera A saman við B, þar sem B er viðmiðið.  Þetta er matið á $\beta_1$ þannig að $\hat{\beta}_1 = 0.864$.  Þetta er alveg í samræmi við það sem við vorum búin að reikna fyrir ofan.  Gagnlíkindahlutfallið fyrir samanburðinn á A á móti B verður $\exp(0.864)$ = `r exp(coef(fit.simple)[2])`.
+
+## Fjölbreytulíkan í R
+Við skulum taka greininguna lengra og leiðrétta fyrir aldri vegna þess að aldur er truflandi breyta *confounding variable* þegar verið er að skoða samband hegðunar og hjartaáfalla.  Við höfum áður skilgreint miðjaða útgáfu af aldursbreytunni 
+
+```{r}
+wcgs$agem <- wcgs$age0 - 46
+```
+  
+Hugmyndin að baki er að *agem=0* þegar *age0=46*.  Þetta flýtir fyrir túlkun á stikunum eins og við munum sjá.  Líkanið verður
+
+$$
+\begin{aligned}
+Y      \sim  Bernoulli(\pi) \\
+g(\pi)  =  \beta_0 + \beta_1 x_1 + \beta_2 x_2.
+\end{aligned}
+$$
+
+Hér ætlum við að láta $x_1$ standa fyrir *dibpat0f* eins og áður og $x_2$ fyrir agem.  Í R stækkum við fyrra líkan með því að bæta agem við breytulistann og skrifum:
+
+```{r}
+fit.multi1 <- glm(chd69~dibpat0f+agem,
+                  family=binomial(link="logit"),
+                  data=wcgs)
+summary(fit.multi1)
+```
+
+  
+Hægt er að ná í betra útlit á töflunni fyrir stikana með *xtable*:
+```{r,results='asis'}
+  print(xtable(fit.multi1),type='html')
+```
+
+
+Við tökum eftir að matið á $\beta_0$ og $\beta_1$ hefur breyst aðeins. Til að útskýra það tökum við eftir að það er aldursmunur milli hópanna:
+
+```{r}
+tapply(wcgs$age0,wcgs$dibpat0f,mean)
+```
+
+  
+Þetta kallast *confounding* eða gruggun og aldur er gruggunarbreyta eða truflandi breyta í þessu samhengi.  
+  
+Við höfum séð að líkur á hjartasjúkdómi aukast með aldri. Þar sem hegðunar hópur A er aðeins eldri en B skýrist eitthvað af mun á A og B af aldursmuninum.  Miðað við 46 ára aldur er mat á líkum á hjartasjúkdómi fyrir persónuleika B sama og $h(-2.9832)$, sem er 
+```{r}
+plogis(-2.9832)
+```
+  
+Fyrir hegðun A eru líkurnar $h(-2.9823+0.7994)$, sem er 
+```{r}
+ plogis(-2.9823+0.7994)
+```
+  
+Gagnlíkindahlutfallið fyrir hegðun A á móti B er $\exp(0.7994)$ sem er
+```{r}
+ exp(coef(fit.multi1)[2])
+```
+  
+  
+Takið eftir að gagnlíkindahlutfallið lækkar aðeins vegna þess að við höfum leiðrétt fyrir aldri og þannig útskýrt eitthvað af muninum í áhættu á hjartaskjúkdómi milli hópanna.
+
+Hver er túlkunin á stikanum við *agem*?    Samkvæmt úttakinu hækkar log-odds á hjartasjúkdómi um 0.0687 fyrir hvert ár í aldri.  Samkvæmt skilgreiningu líkansins er þessi hækkun er óháð persónuleika.  Með öðrum orðum, við gerum ekki ráð fyrir víxlhrifum milli aldurs og persónuleika.  Við þurfum að prófa það tölfræðilega.
+
+## Víxlhrif
+Er fylgni við aldur eins milli hegðunarflokka?  Þegar samband breytu við útkomu er háð gildum annarrar breytu er talað um að víxlhrif séu til staðar.  Til að prófa það notum við margfeldi af aldri og hegðunarbreytunni í líkaninu.  Þetta er táknað með
+```{r,eval=FALSE}
+dibpat0f:agem
+```
+
+Líkanið verður þá:
+```{r}
+fit.multi2 <- glm(chd69~dibpat0f + agem + dibpat0:agem,
+                  family=binomial(link="logit"),
+                  data=wcgs)
+summary(fit.multi2)
+drop1(fit.multi2,test="Chisq")
+```
+
+
+Þátturinn *dibpat0f:agem* hefur ekki áhrif til að bæta líkanið tölfræðilega marktækt.  Með öðrum orðum víxlhrifin eru ekki tölfræðilega marktæk.  Aukning í hjartasjúkdómum hækka eins með aldri eftir hegðunarflokkum.  En tíðnin er alltaf hærri hjá hegðun A.
+  
+Prófum öll víxlhrif (annarar gráðu) í stærra líkani.  Það getum við gert með því að setja breyturnar í sviga og \texttt{\^2} utan um.
+
+```{r}
+fit.multi3 <- glm(chd69 ~ (dibpat0f + agem + bmi + cholmmol + 
+                             sbp0 + smokerfny)^2,
+                  family=binomial(link="logit"),data=wcgs)
+summary(fit.multi3)
+drop1(fit.multi3,test="Chisq")
+```
+
+Það eru tvenn víxlhrif marktæk.  Milli bmi og kólesteróls, og milli bmi og blóðþrýstings.
+```{r}
+fit.multi4 <- glm(chd69 ~ dibpat0f + agem + bmi + cholmmol + 
+                    sbp0 + smokerfny + bmi:cholmmol+bmi:sbp0,
+                  family=binomial(link="logit"),data=wcgs)
+summary(fit.multi4)
+drop1(fit.multi4,test="Chisq")
+```
+
+
+Takið eftir formerkjunum á stikunum við víxlhrifin.  Þetta þýðir að áhrif bmi og kólesteróls margfaldast ekki saman heldur eru einhver samlegðaráhrif sem dregur úr margfeldisáhrifunum.  Sama gildir fyrir bmi  og blóðþrýsting. Það er mjög algengt að sjá svona niðurstöður í áhættuþátta gögnum.
+  
+Við látum þetta vera loka líkanið sem við vinnum með og svo eitt einfaldara, án víxlhrifanna.  Í næsta kafla könnum við gæði þessara líkana.
+```{r}
+fit.multi <- fit.multi4
+fit.multi.s <- glm(chd69 ~ dibpat0f + agem + bmi + cholmmol + 
+                    sbp0 + smokerfny , family=binomial(link="logit"),
+                   data=wcgs)
+```
+
+## Nánar um  víxlhrif
+Við getum notað *visreg* pakkan til að gera okkur grein fyrir víxlhrifunum.  Fyrir hátt kólesteról verða áhrif BMI ekki eins mikil eins og þegar kólesteról er lágt. 
+```{r}
+visreg(fit.multi4, "bmi", by="cholmmol", gg=TRUE,scale="linear")
+```
+
+Hliðstætt fyrir *bmi* og blóðþrýsting.
+```{r}
+visreg(fit.multi4, "sbp0", by="bmi", gg=TRUE,scale="linear")
+```
+
+
+## Æfing 1
+Notið einfalda líkanið *fit.multi.s*.  Reiknið bæði í *höndunum* með kóða og notið *predict* fyrir fyrstu 2 liðina.
+
+* Spáið líkukm á hjartasjúkdómi hjá manni með hegðun A sem er 48 ára, með bmi=25, cholmmol=6, sbp0=135 og reykir.  
+* Spáið líkukm á hjartasjúkdómi hjá manni með hegðun A sem er 48 ára, með bmi=25, cholmmol=6, sbp0=135 og reykir ekki.  
+* Hvert er OR fyrir hjartasjúkdómi fyrir hegðun A á móti hegðun B leiðrétt fyrir aldri, bmi, kólesteróli, blóðþrýstingi og reykingum? Hvert er öryggisbilið?
+* Hvert er OR fyrir hjartasjúkdómi fyrir hegðun A á móti hegðun B leiðrétt fyrir aldri, bmi, kólesteróli, blóðþrýstingi og reykingum? Hvert er öryggisbilið?
+
+## Æfing 2
+Notið arcus0 og age0 til að spá fyrir um hjartasjúkdóm. 
+
+*  Hvert er óleiðrétt OR fyrir hjartasjúkdómi hjá þeim sem eru arcus miðað við þá sem ekki eru með arcus?  Reiknið í höndunum og með glm.  Hvert er öryggisbilið?
+*  Hvert er aldursleiðrétt OR fyrir hjartasjúkdómi hjá þeim sem eru arcus miðað við þá sem ekki eru með arcus?
+*  

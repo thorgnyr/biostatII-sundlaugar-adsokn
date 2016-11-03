@@ -1,1 +1,1 @@
-data <- read.table("gogn.csv", header = TRUE, sep = ";", dec = ",")
+data <- read.table("gogn-transposed.csv", header = TRUE, sep = ";")

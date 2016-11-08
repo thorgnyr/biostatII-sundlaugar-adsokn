@@ -1,0 +1,18 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(epitools)
+data(wcgs)
+library(ggplot2)
+wcgs$dibpat0f <- factor(wcgs$dibpat0)
+ggplot(wcgs, aes(x = sbp0)) + geom_histogram(binwidth = .5) + facet_grid(dibpat0f ~ .)
+
+table(wcgs$dibpat0f)
+
+ggplot(data, aes(x = Fjoldi)) + geom_histogram(binwidth = .5)
+
+```
+
